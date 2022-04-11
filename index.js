@@ -86,9 +86,11 @@ const app = http.createServer(function (request, response) {
          const post = qs.parse(body);
          const title = post.title;
          const description = post.description;
+         fs.writeFile(`data/${title}`, description,"utf-8", function(err){
+            response.writeHead(302, {location: `/?id=${title}`});
+            response.end();
+         });
       });
-      response.writeHead(200);
-      response.end('success');
    }
    else {
       response.writeHead(404)
