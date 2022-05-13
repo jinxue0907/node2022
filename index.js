@@ -2,35 +2,12 @@ const http = require('http')
 const fs = require('fs')
 const url = require('url')
 const qs = require('querystring');
+const path = require('path');
+const sanitizeHtml = require('sanitize-html');
+const template = require('./lib/template.js');
 
-const template = {
-   List: function(filelist){
-      let list = '<ul>';
-      for(let i=0; i<filelist.length; i++) {
-         list += `<li> <a href="/?id=${filelist[i]}"> ${filelist[i]} </a> </li>`;
-      }
-      list += '</ul>';
-      return list;
-   },
-   HTML:function(title, list, body, control){
-      return `
-          <!doctype html>
-          <html lang="ko">
-          <head>
-            <title>WEB1 - ${title}</title>
-            <meta charset="utf-8">
-          </head>
-          <body>
-            <h1><a href="/">WEB</a></h1>
-            ${list}
-            <h2>${title}</h2>
-            ${control}
-            <p>${body}</p>
-          </body>
-          </html>
-          `
-   }
-}
+
+
 
 const app = http.createServer(function (request, response) {
    const _url = request.url
@@ -54,15 +31,16 @@ const app = http.createServer(function (request, response) {
                list += `<li> <a href="/?id=${data[i]}"> ${data[i]} </a> </li>`;
             }
             list += '</ul>';
-
-            fs.readFile(`data/${queryData.id}`, 'utf8', function (err, description) {
+            const filteredId = path.parse(queryData.id).base;
+            fs.readFile(`data/${filteredId}`, 'utf8', function (err, description) {
                const title = queryData.id
+               const sanitizedTitle = sanitizeHtml(title);
+               const sanitizedDescription = sanitizeHtml(description);
                //메인 화면에서는 create(새 게시글 작성)만 가능하게
-               const list = template.List(data);
-               const html = template.HTML(title, list, description,
-                   `<a href="create">create</a> <a href="/update?id=${title}">update</a>
+               const html = template.HTML(title, list, sanitizedDescription,
+                   `<a href="create">create</a> <a href="/update?id=${sanitizedTitle}">update</a>
                                 <form action="delete_process" method="post">
-                                    <input type="hidden" name="id" value="${title}">
+                                    <input type="hidden" name="id" value="${sanitizedTitle}">
                                     <input type="submit" value="delete">
                                 </form>`);
                response.writeHead(200)
@@ -102,8 +80,9 @@ const app = http.createServer(function (request, response) {
    }else if(pathname === '/update'){
       //data: 실제 파일리스트 문자열들의 배열(파일이름은 게시글의 제목)
       fs.readdir('data', function(err, data){
+         const filteredId = path.parse(queryData.id).base;
          //description: ㅍㅏ일안의 내용물(게시글의 내용)
-         fs.readFile(`data/${queryData.id}`,'utf-8',function (err, description){
+         fs.readFile(`data/${filteredId}`,'utf-8',function (err, description){
             const title = queryData.id;
             const list = template.List(data);
             //특정 게시글을 읽고 있을땐 create(게시글 생성)과 update(수정)을 보이게
@@ -145,7 +124,8 @@ const app = http.createServer(function (request, response) {
       request.on('end', function () {
          const post = qs.parse(body);
          const id = post.id;     //게시글 제목
-         fs.unlink(`data/${id}`, function(err){
+         const filteredId = path.parse(id).base;
+         fs.unlink(`data/${filteredId}`, function(err){
             response.writeHead(302, {Location: '/'});
             response.end();
          });
